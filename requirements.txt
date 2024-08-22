@@ -1,0 +1,7 @@
+taichi
+plyfile
+imageio
+matplotlib
+scipy
+open3d
+mitsuba
