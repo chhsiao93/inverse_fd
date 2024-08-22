@@ -1,7 +1,8 @@
-taichi
+taichi==1.7.1
+numpy==1.26.4
 plyfile
 imageio
 matplotlib
 scipy
-open3d
+open3d==0.18.0
 mitsuba
