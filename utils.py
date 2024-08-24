@@ -114,5 +114,5 @@ def load_sensor(r, phi, theta):
         },
     })
 def compute_image_loss(image, image_ref):
-    return (np.sqrt(np.mean((image - image_ref)**2)))
+    return (np.mean((image - image_ref)**2))
     
