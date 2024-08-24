@@ -9,7 +9,7 @@ import numpy as np
 from imageio.v3 import imread
 
 n_view = 6
-guess = -0.1
+guess = -0.08
 errors = []
 vels = []
 
@@ -19,7 +19,7 @@ pos = data['pos']
 ply_file = pcd_to_mesh(pos=pos)
 images_ref, phis = multi_view(ply_file, n_view=n_view,from_o3d=True, save_prefix='')
 
-for iteration in range(51):
+for iteration in range(20):
     # forward
     print(f'velocity: {guess:.3f}')
     vels.append(guess)
@@ -36,6 +36,6 @@ for iteration in range(51):
         multiview_loss.append(image_loss)
     print(np.mean(multiview_loss))
     errors.append(np.array(multiview_loss))
-    guess += -0.004
+    guess += 0.02
 # save errors
-np.savez('data/results.npz',vel=np.array(vels), err=np.array(errors))
+np.savez('data/results2.npz',vel=np.array(vels), err=np.array(errors))

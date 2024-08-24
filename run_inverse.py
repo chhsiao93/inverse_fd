@@ -51,7 +51,7 @@ def f(guess):
 #     print(x)
 #     return x**4 - 3*x**3 + 20*x**2 - 5
 
-res = minimize(f, guess_0, method='BFGS', tol=1e-6, maxiter=20)
+res = minimize(f, guess_0, method='BFGS', tol=1e-6, options={'maxiter':20})
 print('optimized x', res.x)
 # save errors
 np.savez('data/bfgs_results.npz',vel=np.array(vels), err=np.array(errors))
