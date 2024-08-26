@@ -10,14 +10,10 @@ from imageio.v3 import imread
 from scipy.optimize import minimize
 n_iter = 0
 n_view = 6
-guess_0 = -0.1
+guess_0 = -0.3
 vels = []
 errors = []
 
-# def callbackF(x):
-#     global n_iter
-#     print(f'{n_iter}\t{x[0]:.2e}\t{f(x[0]):.2e}')
-#     n_iter += 1
 # render final state from nerf
 data = np.load('./data/nerf_to_mtpts_frame199.npz', allow_pickle=True)
 pos = data['pos']
@@ -28,7 +24,7 @@ images_ref, phis = multi_view(ply_file, n_view=n_view,from_o3d=True, save_prefix
 def f(guess):
     # forward
     guess_scalar = guess.squeeze()
-    print(f'velocity: {guess_scalar:.3f}')
+    print(f'velocity: {guess_scalar:.6e}')
     vels.append(guess)
     pos, mat = forward(guess_scalar)
     # generate mesh
@@ -49,10 +45,13 @@ def f(guess):
 # import numpy as np
 # def f(x):
 #     print(x)
-#     return x**4 - 3*x**3 + 20*x**2 - 5
+#     return x**4 - 3*x**3 + 20*x**2 + np.sin(10*x)*1e-4
 
-res = minimize(f, guess_0, method='BFGS', tol=1e-6, options={'maxiter':20})
+method = 'L-BFGS-B' #Nelder-Mead
+tol = 8.3e-5
+# res = minimize(f, guess_0, method=method, tol=tol, options={'xatol':1e-4,'disp':True})
+res = minimize(f, guess_0, method=method, tol=tol, options={'disp':True,'eps':1e-3}, bounds=[(-0.5,0.1)])
 print('optimized x', res.x)
 # save errors
-np.savez('data/bfgs_results.npz',vel=np.array(vels), err=np.array(errors))
+np.savez(f'data/{method}_results.npz',vel=np.array(vels), err=np.array(errors))
 
