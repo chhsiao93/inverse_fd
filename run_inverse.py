@@ -9,9 +9,9 @@ import numpy as np
 from imageio.v3 import imread
 from scipy.optimize import minimize
 n_iter = 0
-n_view = 6
-guess_0 = -0.3
-vels = []
+n_view = 12
+guess_0 = [38.5]
+guesses = []
 errors = []
 
 # render final state from nerf
@@ -23,10 +23,9 @@ images_ref, phis = multi_view(ply_file, n_view=n_view,from_o3d=True, save_prefix
     
 def f(guess):
     # forward
-    guess_scalar = guess.squeeze()
-    print(f'velocity: {guess_scalar:.6e}')
-    vels.append(guess)
-    pos, mat = forward(guess_scalar)
+    print(guess)
+    guesses.append(guess)
+    pos, mat = forward(act_vel=-0.2, phi_degree=guess[0])
     # generate mesh
     ply_file = pcd_to_mesh(pos=pos, mat=mat, mask_id=3)
     # multi view images
@@ -35,8 +34,8 @@ def f(guess):
     multiview_loss = []
     # compute loss for different views
     for i, (image, image_ref) in enumerate(zip(images,images_ref)):
-        image_loss = compute_image_loss(image, image_ref)
-        multiview_loss.append(image_loss)
+        mse_loss, _, _ = compute_image_loss(image, image_ref)
+        multiview_loss.append(mse_loss)
     errors.append(np.array(multiview_loss))
     print(np.mean(multiview_loss))
     return (np.mean(multiview_loss))
@@ -47,11 +46,11 @@ def f(guess):
 #     print(x)
 #     return x**4 - 3*x**3 + 20*x**2 + np.sin(10*x)*1e-4
 
-method = 'L-BFGS-B' #Nelder-Mead
-tol = 8.3e-5
-# res = minimize(f, guess_0, method=method, tol=tol, options={'xatol':1e-4,'disp':True})
-res = minimize(f, guess_0, method=method, tol=tol, options={'disp':True,'eps':1e-3}, bounds=[(-0.5,0.1)])
+method = 'Nelder-Mead' #Nelder-Mead
+tol = 2.0e-4
+res = minimize(f, guess_0, method=method, tol=tol, options={'xatol':1e-4,'disp':True})
+# res = minimize(f, guess_0, method=method, tol=tol, options={'disp':True,'eps':1e-3})
 print('optimized x', res.x)
 # save errors
-np.savez(f'data/{method}_results.npz',vel=np.array(vels), err=np.array(errors))
+np.savez(f'data/phi_{method}_results.npz',guess=np.array(guesses), err=np.array(errors))
 
