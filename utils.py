@@ -4,6 +4,7 @@ import mitsuba as mi
 import drjit as dr
 mi.set_variant('cuda_ad_rgb') # set variant before import anything else
 from mitsuba import ScalarTransform4f as T
+from skimage.metrics import structural_similarity as ssim
    
 def pcd_to_mesh(pos, mat=None, mask_id=None, save_name='mesh.ply'):
     if mat is None and mask_id is None:
@@ -43,7 +44,12 @@ def multi_view(ply_file, n_view=2, from_o3d=False, save_prefix=''):
         # Define the scene to render
         scene_dict = {
             'type': 'scene',
-            'integrator': {'type': 'path'},
+            'integrator': {'type': 'aov',
+                'aovs': 'dd.y:depth',
+                'my_image': {
+                    'type': 'path',
+                }
+            },
             'light': {
                 'type': 'point',
                 'position': [5.0, 5.0, 0.0],
@@ -80,7 +86,7 @@ def multi_view(ply_file, n_view=2, from_o3d=False, save_prefix=''):
     
     sensor_count = n_view
 
-    radius = 2.5
+    radius = 1.5
     phis = [30.0 * i for i in range(sensor_count)]
     theta = 60.0
 
@@ -95,7 +101,7 @@ def load_sensor(r, phi, theta):
         'type': 'perspective',
         'fov': 39.3077,
         'to_world': T.look_at(
-            origin=origin, 
+            origin=origin+[0.5, 0, 0.5], 
             target=[0.5, 0, 0.5], 
             up=[0, 1, 0]
         ),
@@ -110,9 +116,25 @@ def load_sensor(r, phi, theta):
             'rfilter': {
                 'type': 'tent',
             },
-            'pixel_format': 'rgb',
+            'pixel_format': 'rgba',
         },
     })
 def compute_image_loss(image, image_ref):
-    return (np.mean((image - image_ref)**2))
+    # convert to numpy array
+    image = np.array(image)
+    image_ref = np.array(image_ref)
+    if image.shape[-1] == 3: #rgb
+        mse_loss = (np.mean((image - image_ref)**2))
+        ssim_value = ssim(np.array(image_ref), np.array(image), data_range=np.max(image_ref) - np.min(image_ref), channel_axis=2)
+        return mse_loss, ssim_value
+    elif image.shape[-1] == 5: #rgba and depth
+        # ignore a
+        image_rgb, image_ref_rgb = image[:,:,:3], image_ref[:,:,:3] #rgb 
+        image_depth, image_ref_depth = image[:,:,-1], image_ref[:,:,-1] #depth
+        
+        mse_loss = (np.mean((image_rgb - image_ref_rgb)**2))
+        ssim_value = ssim(np.array(image_ref_rgb), np.array(image_rgb), data_range=np.max(image_ref_rgb) - np.min(image_ref_rgb), channel_axis=2)
+        mse_depth_loss = (np.mean((image_depth - image_ref_depth)**2))
+        
+        return mse_loss, ssim_value, mse_depth_loss
     
