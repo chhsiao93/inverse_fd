@@ -65,20 +65,10 @@ class MPMSolver:
             use_adaptive_dt=False,
             use_ggui=False,
             use_emitter_id=False,
-            act_vel = -0.2,
-            f_a = 0.0,
-            f_b = 0.0,
-            f_c = 0.0,
-            force_control=False,
             phi_degree=45.0,
             
     ):
         
-        self.act_vel = act_vel
-        self.f_a = f_a
-        self.f_b = f_b
-        self.f_c = f_c
-        self.force_control = force_control
         self.dim = len(res)
         self.quant = quant
         self.use_g2p2g = use_g2p2g
@@ -130,8 +120,6 @@ class MPMSolver:
             self.v = ti.Vector.field(self.dim, dtype=ti.f32)
             self.x = ti.Vector.field(self.dim, dtype=ti.f32)
             self.F = ti.Matrix.field(self.dim, self.dim, dtype=ti.f32)
-            # for storing original velocity
-            self.v_o = ti.Vector.field(self.dim, dtype=ti.f32)
 
         self.use_emitter_id = use_emitter_id
         if self.use_emitter_id:
@@ -282,7 +270,7 @@ class MPMSolver:
                                 self.color, self.emitter_ids)
             else:
                 self.particle.place(self.x, self.v, self.F, self.material,
-                                self.color, self.v_o)
+                                self.color)
             if self.support_plasticity:
                 self.particle.place(self.Jp)
             if not self.use_g2p2g:
@@ -333,33 +321,6 @@ class MPMSolver:
         assert isinstance(g, (tuple, list))
         assert len(g) == self.dim
         self.gravity[None] = g
-        
-    @ti.func
-    def vel_func(self, v, t):
-        vel_out = ti.Vector.zero(ti.f32, self.dim)
-        if t > 0.01:
-            vel_out[0] = self.act_vel
-            vel_out[1] = 0.0
-            # vel_out[1] = -0.2*ti.math.sin((t-0.2)*10)
-        else:
-            vel_out[0] = 0.0
-            vel_out[1] = 0.0
-            # vel_out[1] = (0.25-0.3)/0.2
-        return vel_out
-    @ti.func
-    def force_func(self, a, b, c, t):
-        del_vel = ti.Vector.zero(ti.f32, self.dim)
-        # bwteent 0 and pt 1
-        t_a = 8e-3 * 13.0
-        t_b = 8e-3 * 50.0
-        t_c = 8e-3 * 200.0
-        if t < t_a:
-            del_vel[0] = (a-0)*(t - 0.0)/(t_a-0.0) + 0.0
-        elif t < t_b:
-            del_vel[0] = (b-a)*(t - t_a)/(t_b-t_a) + a
-        else:
-            del_vel[0] = (c-b)*(t - t_b)/(t_c-t_a) + b
-        return del_vel
 
     @ti.func
     def sand_projection(self, sigma, p):
@@ -526,7 +487,18 @@ class MPMSolver:
                 grid_m_out[base + offset] += weight * self.p_mass
 
         self.last_time_final_particles[None] = self.n_particles[None]
-
+        
+    @ti.kernel
+    def set_act(self, dt: ti.f32, act_v: ti.types.ndarray()): # type: ignore
+        new_v = ti.Vector.zero(ti.f32, n=self.dim)
+        new_v = ti.Vector([act_v[0], act_v[1], act_v[2]])
+        
+        for I in ti.grouped(self.pid):
+            p = self.pid[I]
+            if self.material[p] == self.material_actuator:
+                self.v[p] = new_v
+                self.x[p] += new_v * dt
+                
     @ti.kernel
     def p2g(self, dt: ti.f32):
         ti.no_activate(self.particle)
@@ -735,8 +707,7 @@ class MPMSolver:
                 t, dt, unbounded, grid_v))
 
     @ti.kernel
-    def g2p(self, dt: ti.f32, t:ti.f32):
-        act_vel_mean = ti.Vector.zero(ti.f32, self.dim)
+    def g2p(self, dt: ti.f32):
         ti.loop_config(block_dim=256)
         if ti.static(self.use_bls):
             for d in ti.static(range(self.dim)):
@@ -763,30 +734,9 @@ class MPMSolver:
                     weight *= w[offset[d]][d]
                 new_v += weight * g_v
                 new_C += 4 * self.inv_dx * weight * g_v.outer_product(dpos)
-            if self.material[p] != self.material_stationary:
+            if self.material[p] != self.material_stationary and self.material[p] != self.material_actuator:
                 self.v[p], self.C[p] = new_v, new_C
-                self.v_o[p] = new_v
-                if self.material[p] == self.material_actuator:
-                    if self.force_control: # force control
-                        self.v[p][1] = 0.0 # fix y dir
-                        self.v[p][2] = 0.0 # fix z dir
-                        ti.atomic_add(act_vel_mean,self.v[p]) # compute total velocity
-                                                
-                    else: # displacement control
-                        new_v = ti.Vector.zero(ti.f32, self.dim)
-                        new_v = self.vel_func(new_v, t)
-                        self.v[p] = new_v
-                        self.x[p] += dt * self.v[p]
-                else:
-                    # self.v[p], self.C[p] = new_v, new_C
-                    self.x[p] += dt * self.v[p]  # advection
-        if self.force_control:
-            del_v = self.force_func(self.f_a, self.f_b, self.f_c, t)
-            for I in ti.grouped(self.pid):
-                p = self.pid[I]
-                if self.material[p] == self.material_actuator:
-                    self.x[p] += dt * self.v[p]  # advection
-                    self.v[p] = act_vel_mean/10000.0 + self.p_mass * del_v # force applied on particles
+                self.x[p] += dt * self.v[p]  # advection
                     
 
     @ti.kernel
@@ -811,12 +761,11 @@ class MPMSolver:
             ti.atomic_max(max_velocity, v_max)
         return max_velocity
 
-    def step(self, frame_dt, print_stat=False, smry_writer=None):
+    def step(self, frame_dt, act_v, print_stat=False, smry_writer=None):
         begin_t = time.time()
         begin_substep = self.total_substeps
 
         substeps = int(frame_dt / self.default_dt) + 1
-
         dt = frame_dt / substeps
         frame_time_left = frame_dt
         if print_stat:
@@ -835,8 +784,9 @@ class MPMSolver:
                 cfl_dt = self.g2p2g_allowed_cfl * self.dx / (max_grid_v + 1e-6)
                 dt = min(dt, cfl_dt, frame_time_left)
             frame_time_left -= dt
-
+            
             if self.use_g2p2g:
+                print('use g2p2g')
                 output_grid = 1 - self.input_grid
                 self.grid[output_grid].deactivate_all()
                 self.build_pid(self.pid[self.input_grid],
@@ -860,8 +810,9 @@ class MPMSolver:
                 for p in self.grid_postprocess:
                     p(self.t, dt, self.grid_v)
                 self.t += dt
+                self.g2p(dt)
                 # update actuator
-                self.g2p(dt, self.t)
+                self.set_act(dt, act_v)
 
             cur_frame_velocity = self.compute_max_velocity()
             if smry_writer is not None:
@@ -1245,15 +1196,11 @@ class MPMSolver:
         self.copy_dynamic(np_material, self.material)
         np_color = np.ndarray((self.n_particles[None], ), dtype=np.int32)
         self.copy_dynamic(np_color, self.color)
-        # saving original v
-        np_v_o = np.ndarray((self.n_particles[None], self.dim), dtype=np.float32)
-        self.copy_dynamic_nd(np_v_o, self.v_o)
         particles_data = {
             'position': np_x,
             'velocity': np_v,
             'material': np_material,
-            'color': np_color,
-            'original_velocity': np_v_o
+            'color': np_color
         }
         if self.use_emitter_id:
             np_emitters = np.ndarray((self.n_particles[None], ), dtype=np.int32)
