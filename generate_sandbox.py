@@ -11,7 +11,7 @@ cube_size = [1.0, 0.4, 1.0] # x (right), y (up), z (into the screen)
 lower_corner = [0.0, 0.0, 0.0]
 density = 2 ** 3
 # actuator info
-plane_center = [0.1, 0.3, 0.5]
+plane_center = [0.1, 0.4, 0.5]
 plane_size = [0.1, 0.1]
 plane_angle = 30.0 # degrees
 
@@ -61,7 +61,7 @@ print(actuator_particles.shape)
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
 ax.scatter(cube_particles[:, 0], cube_particles[:, 2], cube_particles[:, 1], c=cube_particles[:, 1], cmap='coolwarm', s=0.5, alpha=0.1)
-ax.scatter(actuator_particles[:, 0], actuator_particles[:, 2], actuator_particles[:, 1], c='k', s=1)
+ax.scatter(actuator_particles[:, 0], actuator_particles[:, 2], actuator_particles[:, 1], c=actuator_particles[:, 1], cmap='viridis', s=1)
 # set x, y, z limits to (0,1)
 ax.set_xlim([0, 1])
 ax.set_ylim([0, 1])
@@ -74,4 +74,12 @@ ax.view_init(elev=45, azim=-105)
 plt.show()
 
 # Save the particles to a npz file
-np.savez('data/sandbox_particles.npz', sand=cube_particles, actuator=actuator_particles)
+np.savez('data/sand_particles.npz', sand=cube_particles)
+np.savez('data/actuator_particles.npz', actuator=actuator_particles)
+
+
+# # generate sand mesh for blender
+# import utils
+# # switch y and z coordinate for blender
+# cube_particles[:, [1, 2]] = cube_particles[:, [2, 1]]
+# utils.pcd_to_mesh(cube_particles, save_name='data/sand_mesh.ply')
