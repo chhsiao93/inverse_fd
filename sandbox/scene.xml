@@ -1,0 +1,115 @@
+<scene version="2.1.0">
+
+
+
+	<default name="spp" value="4096" />
+	<default name="resx" value="1280" />
+	<default name="resy" value="720" />
+
+
+
+	<integrator type="path" id="elm__0" name="elm__0">
+		<integer name="max_depth" value="12" />
+	</integrator>
+	<sensor type="perspective" id="camera_1" name="camera_1">
+		<string name="fov_axis" value="x" />
+		<float name="fov" value="61.927515" />
+		<float name="principal_point_offset_x" value="0.000000" />
+		<float name="principal_point_offset_y" value="-0.000000" />
+		<float name="near_clip" value="0.100000" />
+		<float name="far_clip" value="1000.000000" />
+		<transform name="to_world">
+			<rotate x="1" angle="-169.99999334703236" />
+			<rotate y="1" angle="45.00000466733367" />
+			<rotate z="1" angle="-180.00000500895632" />
+			<translate value="-0.500000 0.500000 1.500000" />
+		</transform>
+		<sampler type="independent" name="sampler">
+			<integer name="sample_count" value="$spp" />
+		</sampler>
+		<film type="hdrfilm" name="film">
+			<integer name="width" value="$resx" />
+			<integer name="height" value="$resy" />
+		</film>
+	</sensor>
+	<sensor type="perspective" id="camera_2" name="camera_2">
+		<string name="fov_axis" value="x" />
+		<float name="fov" value="61.927515" />
+		<float name="principal_point_offset_x" value="0.000000" />
+		<float name="principal_point_offset_y" value="-0.000000" />
+		<float name="near_clip" value="0.100000" />
+		<float name="far_clip" value="1000.000000" />
+		<transform name="to_world">
+			<rotate x="1" angle="10.000000562866568" />
+			<rotate y="1" angle="44.99999100695533" />
+			<rotate z="1" angle="-1.0021563436947233e-06" />
+			<translate value="-0.500000 0.500000 -0.500000" />
+		</transform>
+		<sampler type="independent" name="sampler">
+			<integer name="sample_count" value="$spp" />
+		</sampler>
+		<film type="hdrfilm" name="film">
+			<integer name="width" value="$resx" />
+			<integer name="height" value="$resy" />
+		</film>
+	</sensor>
+
+
+
+	<bsdf type="twosided" id="default-bsdf" name="default-bsdf">
+		<bsdf type="diffuse" name="bsdf" />
+	</bsdf>
+	<bsdf type="twosided" id="mat-Sand" name="mat-Sand">
+		<bsdf type="principled" name="bsdf">
+			<rgb value="0.800000 0.476084 0.174021" name="base_color" />
+			<float name="spec_tint" value="-0.100000" />
+			<float name="spec_trans" value="0.000000" />
+			<float name="metallic" value="0.000000" />
+			<float name="anisotropic" value="0.000000" />
+			<float name="roughness" value="0.850000" />
+			<float name="sheen" value="0.000000" />
+			<float name="sheen_tint" value="0.500000" />
+			<float name="clearcoat" value="0.000000" />
+			<float name="clearcoat_gloss" value="0.000900" />
+			<float name="specular" value="0.200000" />
+		</bsdf>
+	</bsdf>
+	<bsdf type="twosided" id="mat-Plow" name="mat-Plow">
+		<bsdf type="principled" name="bsdf">
+			<rgb value="0.168619 0.299817 1.000000" name="base_color" />
+			<float name="roughness" value="1.0" />
+		</bsdf>
+	</bsdf>
+
+
+
+
+	<emitter type="directional" id="sun" name="sun">
+		<rgb value="3.000000 3.000000 3.000000" name="irradiance" />
+		<transform name="to_world">
+			<matrix value="-0.290865 0.771101 -0.566393 4.000000 -0.055189 -0.604525 -0.794672 4.000000 -0.955171 -0.199883 0.218391 -2.000000 0.000000 0.000000 0.000000 1.000000" />
+		</transform>
+	</emitter>
+
+
+
+	<shape type="ply" id="plane" name="plane">
+		<string name="filename" value="mesh/Plane.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="default-bsdf" name="bsdf" />
+	</shape>
+	<shape type="ply" id="sand_traj" name="sand_traj">
+		<string name="filename" value="mesh/sand_reconstr0199.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-Sand" name="bsdf" />
+	</shape>
+	<shape type="ply" id="plow_traj" name="plow_traj">
+		<string name="filename" value="mesh/plow0199.ply" />
+		<boolean name="face_normals" value="true" />
+		<ref id="mat-Plow" name="bsdf" />
+	</shape>
+
+
+
+
+</scene>

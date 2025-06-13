@@ -6,3 +6,6 @@ matplotlib
 scipy
 open3d==0.18.0
 mitsuba
+scikit-image
+scikit-optimize
+alphashape

@@ -1,0 +1,13 @@
+output_name: "phi45"
+var_name: "phi"
+var_bound:
+  - [25.0, 55.0]
+loss_name: "mse"
+acq_func: "EI"
+n_random_starts: 1
+n_calls: 10
+num_bo: 5
+xml_file: "scene.xml"
+observe_frames: [50, 100, 150, 199]
+observe_image_folder: "observations/"
+npz_path: "data/sand_particles_from_nerf.npz"

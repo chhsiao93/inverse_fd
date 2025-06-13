@@ -66,6 +66,8 @@ class MPMSolver:
             use_ggui=False,
             use_emitter_id=False,
             phi_degree=45.0,
+            sand_density=1.0,
+            sand_E_scale=1.0,
             
     ):
         
@@ -76,6 +78,7 @@ class MPMSolver:
         self.use_bls = use_bls
         self.g2p2g_allowed_cfl = g2p2g_allowed_cfl
         self.water_density = water_density
+        self.sand_density = sand_density
         self.grid_size = 4096
 
         assert self.dim in (
@@ -120,6 +123,7 @@ class MPMSolver:
             self.v = ti.Vector.field(self.dim, dtype=ti.f32)
             self.x = ti.Vector.field(self.dim, dtype=ti.f32)
             self.F = ti.Matrix.field(self.dim, self.dim, dtype=ti.f32)
+            self.stress = ti.Matrix.field(self.dim, self.dim, dtype=ti.f32)
 
         self.use_emitter_id = use_emitter_id
         if self.use_emitter_id:
@@ -203,6 +207,7 @@ class MPMSolver:
 
         # Young's modulus and Poisson's ratio
         self.E, self.nu = 1e6 * size * E_scale, 0.2
+        self.sand_E_scale = sand_E_scale # only for sand material
         # Lame parameters
         self.mu_0, self.lambda_0 = self.E / (
             2 * (1 + self.nu)), self.E * self.nu / ((1 + self.nu) *
@@ -266,10 +271,10 @@ class MPMSolver:
                 self.particle.place(self.emitter_ids)
         else:
             if self.use_emitter_id:
-                self.particle.place(self.x, self.v, self.F, self.material,
+                self.particle.place(self.x, self.v, self.F, self.stress, self.material,
                                 self.color, self.emitter_ids)
             else:
-                self.particle.place(self.x, self.v, self.F, self.material,
+                self.particle.place(self.x, self.v, self.F, self.stress, self.material,
                                 self.color)
             if self.support_plasticity:
                 self.particle.place(self.Jp)
@@ -531,6 +536,8 @@ class MPMSolver:
             if ti.static(self.support_plasticity):
                 if self.material[p] != self.material_water:
                     h = ti.exp(10 * (1.0 - self.Jp[p]))
+                if self.material[p] == self.material_sand:
+                    h = h * self.sand_E_scale
             if self.material[p] == self.material_elastic:  #  make it softer or harder
                 h = 0.3
             if self.material[p] == self.material_actuator:  #  make it softer or harder
@@ -583,10 +590,13 @@ class MPMSolver:
             self.F[p] = F
 
             stress = (-dt * self.p_vol * 4 * self.inv_dx**2) * stress
+            self.stress[p] = stress
             # TODO: implement g2p2g pmass
             mass = self.p_mass
             if self.material[p] == self.material_water:
                 mass *= self.water_density
+            elif self.material[p] == self.material_sand:
+                mass *= self.sand_density
             affine = stress + mass * self.C[p]
             # Loop over 3x3 grid node neighborhood
             for offset in ti.static(ti.grouped(self.stencil_range())):
@@ -734,8 +744,10 @@ class MPMSolver:
                     weight *= w[offset[d]][d]
                 new_v += weight * g_v
                 new_C += 4 * self.inv_dx * weight * g_v.outer_product(dpos)
+                
+            self.C[p] = new_C
             if self.material[p] != self.material_stationary and self.material[p] != self.material_actuator:
-                self.v[p], self.C[p] = new_v, new_C
+                self.v[p] = new_v
                 self.x[p] += dt * self.v[p]  # advection
                     
 
@@ -1162,6 +1174,13 @@ class MPMSolver:
                                              color[begin:end])
 
     @ti.kernel
+    def copy_dynamic_mx(self, np_x: ti.types.ndarray(), input_x: ti.template()):
+        for p in self.x:
+            for i in ti.static(range(self.dim)):
+                for j in ti.static(range(self.dim)):
+                    np_x[p, i, j] = input_x[p][i, j]
+                    
+    @ti.kernel
     def copy_dynamic_nd(self, np_x: ti.types.ndarray(), input_x: ti.template()):
         for i in self.x:
             for j in ti.static(range(self.dim)):
@@ -1192,6 +1211,8 @@ class MPMSolver:
         self.copy_dynamic_nd(np_x, self.x)
         np_v = np.ndarray((self.n_particles[None], self.dim), dtype=np.float32)
         self.copy_dynamic_nd(np_v, self.v)
+        np_stress = np.ndarray((self.n_particles[None], self.dim, self.dim), dtype=np.float32)
+        self.copy_dynamic_mx(np_stress, self.stress)
         np_material = np.ndarray((self.n_particles[None], ), dtype=np.int32)
         self.copy_dynamic(np_material, self.material)
         np_color = np.ndarray((self.n_particles[None], ), dtype=np.int32)
@@ -1199,6 +1220,7 @@ class MPMSolver:
         particles_data = {
             'position': np_x,
             'velocity': np_v,
+            'stress': np_stress,
             'material': np_material,
             'color': np_color
         }
